@@ -5,113 +5,118 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: yaboulan <yaboulan@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2023/11/24 16:50:54 by yaboulan          #+#    #+#             */
-/*   Updated: 2023/11/24 22:44:09 by yaboulan         ###   ########.fr       */
+/*   Created: 2023/11/25 14:41:20 by yaboulan          #+#    #+#             */
+/*   Updated: 2023/11/25 14:46:40 by yaboulan         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
+
 #include "get_next_line.h"
 
-static int	checknewline(char *line)
+int	ft_find(char c, char *str)
 {
-	int	i;
+	int	index;
 
-	i = 0;
-	while (line[i])
+	if (!str)
+		return (-1);
+	index = 0;
+	while (str[index])
 	{
-		if (line[i] == '\n')
-			return (i);
-		i++;
+		if (str[index] == c)
+			return (index);
+		index++;
 	}
+	if (!c && !str[index])
+		return (index);
 	return (-1);
 }
 
-static char	*process_remainder(char **remainder)
-{
-	char	*newline;
-	char	*line;
-	char	*temp;
-
-	newline = NULL;
-	line = NULL;
-	if (*remainder)
-	{
-		   if ((newline = ft_strchr(*remainder, '\n')) != NULL)
-        {
-            line = ft_substring(*remainder, 0, checknewline(*remainder) + 2);
-            newline++;
-			temp = ft_strdup(newline);
-            free(*remainder);
-			*remainder = ft_strdup(temp);
-			free(temp);
-        }
-        
-        
-		
-		else
-		{
-			line = ft_strdup(*remainder);
-			free(*remainder);
-			*remainder = NULL;
-		}
-	}
-	
-	return (line);	
-}
-
-static char	*read_into_remainder(int fd, char **remainder)
+char	*read_into_remainder(int fd, char *remainder, int *new_line)
 {
 	char	*buffer;
-	int		bytesread;
-	char	*newline;
+	ssize_t	bytes_read;
 
 	buffer = (char *)malloc(sizeof(char) * (BUFFER_SIZE + 1));
 	if (!buffer)
 		return (NULL);
-	bytesread = 0;
-	newline = NULL;
-	while ((bytesread = read(fd, buffer, BUFFER_SIZE)) > 0)
+	bytes_read = 1;
+	while (bytes_read > 0)
 	{
-		buffer[bytesread] = 0;
-		if (*remainder == NULL)
-			*remainder = ft_strdup(buffer);
-		else
-		{
-			
-			char *temp = ft_strjoin(*remainder, buffer);
-			free(*remainder);
-			*remainder=ft_strdup(temp);
-			free(temp);
-		}
-		if ((newline = ft_strchr(*remainder, '\n')) != NULL)
+		bytes_read = read(fd, buffer, BUFFER_SIZE);
+		if (bytes_read == -1)
+			break ;
+		buffer[bytes_read] = '\0';
+		remainder = ft_strjoin(remainder, buffer);
+		*new_line = ft_find('\n', remainder);
+		if (*new_line >= 0)
 			break ;
 	}
 	free(buffer);
-	return (process_remainder(remainder));
+	return (remainder);
 }
 
-char	*get_next_line(int fd)
+char	*extract_line(char *remainder, int new_line)
 {
-	static char	*remainder = NULL;
-	char		*line;
+	char	*line;
+	char	*temp;
 
-	if (fd < 0 || BUFFER_SIZE <= 0)
+	if (!remainder)
 		return (NULL);
-	line = read_into_remainder(fd, &remainder);
+	if (new_line >= 0)
+	{
+		temp = ft_substr(remainder, 0, new_line + 1);
+		line = ft_strjoin(NULL, temp);
+		free(temp);
+	}
+	else
+		line = ft_strjoin(NULL, remainder);
 	return (line);
 }
 
-int	main(int argc, char const *argv[])
+char	*process_remainder(char *remainder, int new_line)
 {
-	int		fd;
-	char	*s;
+	char	*temp;
 
-	fd = open("test.txt", O_RDWR);
-	while ((s = get_next_line(fd)))
+	if (!remainder)
+		return (NULL);
+	if (new_line < 0)
 	{
-		printf("%s", s);
-		free(s);
+		free(remainder);
+		return (NULL);
 	}
-	while(1);
-	return (0);
+	temp = ft_substr(remainder, new_line + 1, ft_strlen(remainder));
+	free(remainder);
+	remainder = temp;
+	return (remainder);
+}	
+
+	char	*get_next_line(int fd)
+	{
+		static char	*remainder;
+		char		*line;
+		int			new_line;
+
+		if (fd < 0 || BUFFER_SIZE <= 0)
+			return (NULL);
+		remainder = read_into_remainder(fd, remainder, &new_line);
+		if (!remainder)
+			return (NULL);
+		if (!*remainder)
+		{
+			free(remainder);
+			return (NULL);
+		}
+		line = extract_line(remainder, new_line);
+		remainder = process_remainder(remainder, new_line);
+		return (line);
+	}
+int main(int argc, char const *argv[])
+{
+	int fd = open("test.txt",O_RDONLY);
+	char *s;
+	while(s = get_next_line(fd))
+	{
+		printf("%s",s);
+	}
+	return 0;
 }
